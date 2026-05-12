@@ -10,17 +10,29 @@ interface StoredTokens {
 
 const STORAGE_KEY = "alwaysnear.tokens";
 const PKCE_KEY = "alwaysnear.pkce";
+const REFRESH_BUFFER_MS = 60_000;
 
 @Injectable({ providedIn: "root" })
 export class AuthService {
   private tokens = signal<StoredTokens | null>(this.loadTokens());
+  private refreshInFlight: Promise<string | null> | null = null;
 
-  readonly isAuthenticated = () => {
-    const t = this.tokens();
-    return !!t && t.expiresAt > Date.now() + 10_000;
-  };
+  readonly isAuthenticated = () => !!this.tokens();
 
   readonly idToken = () => this.tokens()?.idToken;
+
+  async getValidIdToken(): Promise<string | null> {
+    const t = this.tokens();
+    if (!t) return null;
+    if (t.expiresAt > Date.now() + REFRESH_BUFFER_MS) return t.idToken;
+    if (!t.refreshToken) return null;
+    return this.refresh();
+  }
+
+  forceRefresh(): Promise<string | null> {
+    if (!this.tokens()?.refreshToken) return Promise.resolve(null);
+    return this.refresh();
+  }
 
   async beginLogin(): Promise<void> {
     const verifier = randomString(64);
@@ -74,12 +86,57 @@ export class AuthService {
   }
 
   logout(): void {
-    localStorage.removeItem(STORAGE_KEY);
-    this.tokens.set(null);
+    this.clearTokens();
     const url = new URL(`${environment.cognitoDomain}/logout`);
     url.searchParams.set("client_id", environment.cognitoClientId);
     url.searchParams.set("logout_uri", environment.cognitoRedirectUri.replace("/auth/callback", "/"));
     window.location.href = url.toString();
+  }
+
+  private refresh(): Promise<string | null> {
+    if (this.refreshInFlight) return this.refreshInFlight;
+    this.refreshInFlight = this.doRefresh().finally(() => {
+      this.refreshInFlight = null;
+    });
+    return this.refreshInFlight;
+  }
+
+  private async doRefresh(): Promise<string | null> {
+    const current = this.tokens();
+    if (!current?.refreshToken) return null;
+    const body = new URLSearchParams({
+      grant_type: "refresh_token",
+      client_id: environment.cognitoClientId,
+      refresh_token: current.refreshToken,
+    });
+    let res: Response;
+    try {
+      res = await fetch(`${environment.cognitoDomain}/oauth2/token`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body,
+      });
+    } catch {
+      return null;
+    }
+    if (!res.ok) {
+      // Refresh token rejected (expired/revoked) — drop everything so the next guard hit forces login.
+      this.clearTokens();
+      return null;
+    }
+    const tok = (await res.json()) as {
+      id_token: string;
+      access_token: string;
+      refresh_token?: string;
+      expires_in: number;
+    };
+    this.saveTokens({
+      idToken: tok.id_token,
+      accessToken: tok.access_token,
+      refreshToken: tok.refresh_token ?? current.refreshToken,
+      expiresAt: Date.now() + tok.expires_in * 1000,
+    });
+    return tok.id_token;
   }
 
   private loadTokens(): StoredTokens | null {
@@ -95,6 +152,11 @@ export class AuthService {
   private saveTokens(tok: StoredTokens): void {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(tok));
     this.tokens.set(tok);
+  }
+
+  private clearTokens(): void {
+    localStorage.removeItem(STORAGE_KEY);
+    this.tokens.set(null);
   }
 }
 

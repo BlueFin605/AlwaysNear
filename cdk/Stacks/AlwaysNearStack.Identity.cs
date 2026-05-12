@@ -99,8 +99,9 @@ public sealed partial class AlwaysNearStack
                 UserPoolClientIdentityProvider.GOOGLE,
             },
             GenerateSecret = false,
-            AccessTokenValidity = Duration.Hours(1),
-            IdTokenValidity = Duration.Hours(1),
+            // Cognito hard caps access/id token validity at 24 hours.
+            AccessTokenValidity = Duration.Days(1),
+            IdTokenValidity = Duration.Days(1),
             RefreshTokenValidity = Duration.Days(30),
             PreventUserExistenceErrors = true,
             EnableTokenRevocation = true,
