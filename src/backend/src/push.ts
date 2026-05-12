@@ -31,15 +31,39 @@ export interface CallPayload {
   at: number;
 }
 
+const LABEL_BY_KIND: Record<string, string> = {
+  water: "💧 Water",
+  "tea-coffee": "☕ Tea / Coffee",
+  snack: "🍪 Snack",
+  medication: "💊 Medication",
+  "just-need-you": "💛 Just need you here",
+};
+
 export async function sendToSubscription(sub: SubscriptionRecord, payload: CallPayload): Promise<{ ok: boolean; gone?: boolean }> {
   await ensureVapidConfigured();
+  // iOS Web Push requires every push to show a user-visible notification, so wrap the
+  // payload in Angular ngsw's `notification` envelope — that triggers showNotification()
+  // in the service worker.
+  const title = payload.patientName ? `${payload.patientName} needs you` : "AlwaysNear";
+  const body = `${LABEL_BY_KIND[payload.kind] ?? payload.kind}${payload.severity ? ` — ${payload.severity}` : ""}`;
+  const envelope = {
+    notification: {
+      title,
+      body,
+      tag: "alwaysnear-call",
+      renotify: true,
+      requireInteraction: payload.severity === "urgent",
+      data: payload,
+    },
+    data: payload,
+  };
   try {
     await webpush.sendNotification(
       {
         endpoint: sub.endpoint,
         keys: { p256dh: sub.p256dh, auth: sub.auth },
       },
-      JSON.stringify(payload)
+      JSON.stringify(envelope)
     );
     return { ok: true };
   } catch (err: unknown) {

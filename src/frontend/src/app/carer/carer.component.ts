@@ -3,7 +3,7 @@ import { Router } from "@angular/router";
 import { FormsModule } from "@angular/forms";
 import { SwPush } from "@angular/service-worker";
 import { ApiService, UserRecord } from "../api/api.service";
-import { PushService } from "../push/push.service";
+import { PushService, PushStatus } from "../push/push.service";
 import { AuthService } from "../auth/auth.service";
 
 interface RecentCall {
@@ -25,8 +25,47 @@ interface RecentCall {
       </header>
 
       @if (me()?.linkedPatientId) {
-        <p class="status">Linked. Push notifications: {{ pushReady() ? 'on' : 'enabling…' }}</p>
-        <button class="enable" (click)="enablePush()" [disabled]="pushReady()">Enable notifications on this device</button>
+        <p class="status">Linked. Push notifications: {{ pushReady() ? 'on' : 'off' }}</p>
+        <button class="enable" (click)="enablePush()" [disabled]="pushReady() || pushBusy()">
+          {{ pushBusy() ? 'Enabling…' : 'Enable notifications on this device' }}
+        </button>
+
+        @switch (pushStatus()) {
+          @case ('needs-install') {
+            <p class="hint">
+              On iPhone, notifications only work when the app is added to your home screen.
+              In Safari, tap <strong>Share → Add to Home Screen</strong>, then open AlwaysNear from the home screen and tap Enable again.
+            </p>
+          }
+          @case ('denied') {
+            <p class="hint">Notifications were blocked. Open iPhone <strong>Settings → Notifications → AlwaysNear</strong> and allow notifications, then tap Enable again.</p>
+          }
+          @case ('unsupported') {
+            <p class="hint">This browser doesn't support push notifications.</p>
+          }
+          @case ('not-configured') {
+            <p class="hint">Push isn't configured on the server yet. Check VAPID keys.</p>
+          }
+          @case ('error') {
+            <p class="hint">Couldn't enable notifications. Check the browser console.</p>
+          }
+        }
+
+        <details class="diagnostics">
+          <summary>Diagnostics</summary>
+          <dl>
+            <dt>Click count</dt><dd>{{ clickCount() }}</dd>
+            <dt>Last status</dt><dd>{{ pushStatus() ?? '(not run yet)' }}</dd>
+            <dt>Last error</dt><dd>{{ lastError() ?? '(none)' }}</dd>
+            <dt>Standalone (PWA)</dt><dd>{{ diag.standalone }}</dd>
+            <dt>iOS-like</dt><dd>{{ diag.iosLike }}</dd>
+            <dt>Service worker API</dt><dd>{{ diag.hasSwApi }}</dd>
+            <dt>PushManager API</dt><dd>{{ diag.hasPushApi }}</dd>
+            <dt>SwPush enabled</dt><dd>{{ diag.swPushEnabled }}</dd>
+            <dt>Notification perm</dt><dd>{{ diag.notifPermission }}</dd>
+            <dt>UA</dt><dd class="ua">{{ diag.userAgent }}</dd>
+          </dl>
+        </details>
 
         <section>
           <h2>Recent</h2>
@@ -84,7 +123,51 @@ interface RecentCall {
         background: transparent;
         color: #fff;
         border-radius: 10px;
+        margin-bottom: 1rem;
+      }
+      .enable:disabled {
+        opacity: 0.6;
+      }
+      .hint {
+        background: rgba(255, 255, 255, 0.08);
+        border-left: 3px solid #9cc1ff;
+        padding: 0.75rem 1rem;
+        border-radius: 6px;
         margin-bottom: 1.5rem;
+        font-size: 0.95rem;
+        line-height: 1.4;
+      }
+      .diagnostics {
+        background: rgba(0, 0, 0, 0.25);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 8px;
+        padding: 0.6rem 0.9rem;
+        margin-bottom: 1.5rem;
+        font-size: 0.85rem;
+      }
+      .diagnostics summary {
+        cursor: pointer;
+        font-weight: 600;
+        opacity: 0.9;
+      }
+      .diagnostics dl {
+        display: grid;
+        grid-template-columns: max-content 1fr;
+        gap: 0.2rem 0.8rem;
+        margin: 0.6rem 0 0;
+        font-family: ui-monospace, SFMono-Regular, monospace;
+        font-size: 0.78rem;
+      }
+      .diagnostics dt {
+        opacity: 0.7;
+      }
+      .diagnostics dd {
+        margin: 0;
+        overflow-wrap: anywhere;
+      }
+      .diagnostics .ua {
+        font-size: 0.7rem;
+        opacity: 0.8;
       }
       .invite-row {
         display: flex;
@@ -173,13 +256,43 @@ export class CarerComponent {
   busy = signal(false);
   error = signal<string | null>(null);
   pushReady = signal(false);
+  pushStatus = signal<PushStatus | null>(null);
+  pushBusy = signal(false);
+  clickCount = signal(0);
+  lastError = signal<string | null>(null);
   recent = signal<RecentCall[]>([]);
 
+  diag = {
+    standalone:
+      (typeof window !== "undefined" && window.matchMedia?.("(display-mode: standalone)").matches) ||
+      (typeof navigator !== "undefined" && (navigator as Navigator & { standalone?: boolean }).standalone === true)
+        ? "yes"
+        : "no",
+    iosLike:
+      typeof navigator !== "undefined" &&
+      (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
+        (navigator.userAgent.includes("Mac") && "ontouchend" in document))
+        ? "yes"
+        : "no",
+    hasSwApi: typeof navigator !== "undefined" && "serviceWorker" in navigator ? "yes" : "no",
+    hasPushApi: typeof window !== "undefined" && "PushManager" in window ? "yes" : "no",
+    swPushEnabled: "checking…",
+    notifPermission:
+      typeof Notification !== "undefined" ? Notification.permission : "unsupported",
+    userAgent: typeof navigator !== "undefined" ? navigator.userAgent : "",
+  };
+
   constructor() {
+    this.diag.swPushEnabled = this.swPush.isEnabled ? "yes" : "no";
     this.refreshMe();
     this.swPush.messages.subscribe((msg) => {
-      const payload = msg as RecentCall;
+      const m = msg as { data?: RecentCall } & RecentCall;
+      const payload = m.data ?? m;
       this.recent.update((r) => [payload, ...r].slice(0, 25));
+    });
+    this.swPush.notificationClicks.subscribe(({ notification }) => {
+      const data = (notification as { data?: RecentCall }).data;
+      if (data) this.recent.update((r) => [data, ...r].slice(0, 25));
     });
   }
 
@@ -200,8 +313,18 @@ export class CarerComponent {
   }
 
   async enablePush(): Promise<void> {
-    await this.push.ensureSubscribed();
-    this.pushReady.set(this.push.enabled);
+    this.clickCount.update((n) => n + 1);
+    this.lastError.set(null);
+    this.pushBusy.set(true);
+    try {
+      const status = await this.push.ensureSubscribed();
+      this.pushStatus.set(status);
+      this.pushReady.set(status === "ok");
+    } catch (err) {
+      this.lastError.set((err as Error)?.message ?? String(err));
+    } finally {
+      this.pushBusy.set(false);
+    }
   }
 
   logout(): void {

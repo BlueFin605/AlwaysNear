@@ -7,4 +7,5 @@ export const environment = {
   cognitoClientId: "PLACEHOLDER_CLIENT_ID",
   cognitoRedirectUri: "http://localhost:4200/auth/callback",
   vapidPublicKey: "PLACEHOLDER_VAPID_PUBLIC_KEY",
+  version: "dev",
 };

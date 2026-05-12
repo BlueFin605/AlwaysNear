@@ -10,4 +10,5 @@ export const environment = {
   cognitoClientId: "__USER_POOL_CLIENT_ID__",
   cognitoRedirectUri: "__COGNITO_REDIRECT_URI__",
   vapidPublicKey: "__VAPID_PUBLIC_KEY__",
+  version: "__BUILD_VERSION__",
 };

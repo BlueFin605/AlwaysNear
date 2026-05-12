@@ -6,6 +6,8 @@ import { environment } from "../../environments/environment";
 
 const DEVICE_ID_KEY = "alwaysnear.deviceId";
 
+export type PushStatus = "ok" | "needs-install" | "unsupported" | "denied" | "error" | "not-configured";
+
 @Injectable({ providedIn: "root" })
 export class PushService {
   private swPush = inject(SwPush);
@@ -15,14 +17,19 @@ export class PushService {
     return this.swPush.isEnabled;
   }
 
-  async ensureSubscribed(): Promise<void> {
-    if (!this.swPush.isEnabled) {
-      console.warn("Service worker push is not enabled");
-      return;
-    }
+  async ensureSubscribed(): Promise<PushStatus> {
     if (environment.vapidPublicKey.startsWith("PLACEHOLDER")) {
       console.warn("VAPID public key is a placeholder; push registration skipped.");
-      return;
+      return "not-configured";
+    }
+    if (this.isIosSafari() && !this.isStandalone()) {
+      return "needs-install";
+    }
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+      return "unsupported";
+    }
+    if (!this.swPush.isEnabled) {
+      return "unsupported";
     }
     try {
       const sub = await this.swPush.requestSubscription({
@@ -43,9 +50,24 @@ export class PushService {
           userAgent: navigator.userAgent,
         })
       );
+      return "ok";
     } catch (err) {
       console.error("Push subscription failed", err);
+      const name = (err as { name?: string })?.name;
+      if (name === "NotAllowedError") return "denied";
+      return "error";
     }
+  }
+
+  private isIosSafari(): boolean {
+    const ua = navigator.userAgent;
+    if (/iPad|iPhone|iPod/.test(ua)) return true;
+    return ua.includes("Mac") && "ontouchend" in document;
+  }
+
+  private isStandalone(): boolean {
+    if (window.matchMedia?.("(display-mode: standalone)").matches) return true;
+    return (navigator as Navigator & { standalone?: boolean }).standalone === true;
   }
 
   private getOrCreateDeviceId(): string {
