@@ -1,8 +1,8 @@
-import { SecretsManagerClient, GetSecretValueCommand } from "@aws-sdk/client-secrets-manager";
+import { SSMClient, GetParameterCommand } from "@aws-sdk/client-ssm";
 import webpush from "web-push";
 import type { SubscriptionRecord } from "./db";
 
-const secretsClient = new SecretsManagerClient({});
+const ssmClient = new SSMClient({});
 
 const VAPID_SECRET_NAME = required("VAPID_SECRET_NAME");
 const VAPID_SUBJECT = required("VAPID_SUBJECT");
@@ -17,9 +17,9 @@ function required(key: string): string {
 
 async function ensureVapidConfigured(): Promise<void> {
   if (configured) return;
-  const out = await secretsClient.send(new GetSecretValueCommand({ SecretId: VAPID_SECRET_NAME }));
-  if (!out.SecretString) throw new Error("VAPID secret has no SecretString");
-  const parsed = JSON.parse(out.SecretString) as { publicKey: string; privateKey: string };
+  const out = await ssmClient.send(new GetParameterCommand({ Name: VAPID_SECRET_NAME, WithDecryption: true }));
+  if (!out.Parameter?.Value) throw new Error(`SSM parameter ${VAPID_SECRET_NAME} has no value`);
+  const parsed = JSON.parse(out.Parameter.Value) as { publicKey: string; privateKey: string };
   webpush.setVapidDetails(VAPID_SUBJECT, parsed.publicKey, parsed.privateKey);
   configured = true;
 }

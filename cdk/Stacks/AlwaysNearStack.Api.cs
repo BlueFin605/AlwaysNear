@@ -1,5 +1,6 @@
 using Amazon.CDK;
 using Amazon.CDK.AWS.APIGateway;
+using Amazon.CDK.AWS.IAM;
 using Amazon.CDK.AWS.Lambda;
 using Amazon.CDK.AWS.Logs;
 
@@ -57,7 +58,27 @@ public sealed partial class AlwaysNearStack
         UsersTable.GrantReadWriteData(ApiLambda);
         SubscriptionsTable.GrantReadWriteData(ApiLambda);
         InvitesTable.GrantReadWriteData(ApiLambda);
-        VapidSecret.GrantRead(ApiLambda);
+
+        // VAPID lives in SSM SecureString. Grant the Lambda just enough to read
+        // and decrypt that one parameter (kms:Decrypt is required for SecureString
+        // values and is scoped via the SSM service condition).
+        ApiLambda.AddToRolePolicy(new PolicyStatement(new PolicyStatementProps
+        {
+            Actions = new[] { "ssm:GetParameter" },
+            Resources = new[] { $"arn:aws:ssm:{Region}:{Account}:parameter{Cfg.VapidSecretName}" },
+        }));
+        ApiLambda.AddToRolePolicy(new PolicyStatement(new PolicyStatementProps
+        {
+            Actions = new[] { "kms:Decrypt" },
+            Resources = new[] { "*" },
+            Conditions = new Dictionary<string, object>
+            {
+                ["StringEquals"] = new Dictionary<string, string>
+                {
+                    ["kms:ViaService"] = $"ssm.{Region}.amazonaws.com",
+                },
+            },
+        }));
 
         Api = new RestApi(this, "Api", new RestApiProps
         {

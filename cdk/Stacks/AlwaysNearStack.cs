@@ -9,7 +9,7 @@ namespace AlwaysNear.Cdk.Stacks;
 /// partial classes by concern:
 ///   - Identity:  Cognito User Pool, App Client, Hosted UI, Google IdP
 ///   - Data:      DynamoDB subscriptions table
-///   - Secrets:   Secrets Manager entry for VAPID keys
+///   - Secrets:   SSM SecureString references for VAPID + Google OAuth
 ///   - Api:       Lambda + API Gateway HTTP API with Cognito JWT authoriser
 ///   - Cdn:       S3 frontend bucket + CloudFront + Route53
 /// </summary>

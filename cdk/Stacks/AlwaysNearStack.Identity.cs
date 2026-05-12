@@ -46,12 +46,15 @@ public sealed partial class AlwaysNearStack
             DeletionProtection = isProduction,
         });
 
+        // Real Google credentials live in SSM SecureString at Cfg.GoogleOauthSecretName.
+        // CDK sets placeholders; deploy-infra.ps1 runs `aws cognito-idp update-identity-provider`
+        // post-deploy to inject the live values.
         GoogleIdentityProvider = new UserPoolIdentityProviderGoogle(this, "GoogleProvider",
             new UserPoolIdentityProviderGoogleProps
             {
                 UserPool = UserPool,
-                ClientId = GoogleOAuthSecret.SecretValueFromJson("clientId").UnsafeUnwrap(),
-                ClientSecretValue = GoogleOAuthSecret.SecretValueFromJson("clientSecret"),
+                ClientId = "PLACEHOLDER_SYNCED_POST_DEPLOY",
+                ClientSecretValue = SecretValue.UnsafePlainText("PLACEHOLDER_SYNCED_POST_DEPLOY"),
                 Scopes = new[] { "openid", "email", "profile" },
                 AttributeMapping = new AttributeMapping
                 {
