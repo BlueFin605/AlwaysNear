@@ -8,7 +8,7 @@ Inspired by airline seatback panels — small, focused, fun.
 
 - `src/frontend/` — Angular PWA (call buttons + service worker for receiving pushes)
 - `src/backend/` — Node.js Lambda that registers Web Push subscriptions and dispatches notifications
-- `cdk/` — C# CDK project: S3 + CloudFront + Route53 + Cognito + Lambda + API Gateway + DynamoDB + Secrets Manager (VAPID)
+- `cdk/` — C# CDK project: S3 + CloudFront + Route53 + Cognito + Lambda + API Gateway + DynamoDB + SSM Parameter Store (VAPID)
 - `config.example.json` — fill in to deploy your own instance
 
 ## How it works
@@ -31,4 +31,4 @@ To deploy your own instance, copy `config.example.json` → `config.json` in you
 
 - No always-on infra (everything pay-as-you-go)
 - Public endpoints behind Cognito JWT
-- VAPID keys live in Secrets Manager — never in code or config.json
+- VAPID keys live in SSM Parameter Store as SecureString — never in code or config.json

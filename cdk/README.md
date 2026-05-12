@@ -4,24 +4,26 @@ Per BlueFin policy, infrastructure changes are **never** run from a pipeline. De
 
 ## One-time setup
 
-Create the two referenced secrets in Secrets Manager (region matches `config.json`):
+Create the two referenced secrets in SSM Parameter Store as `SecureString` (region matches `config.json`):
 
 ```bash
 # Generate VAPID keys (any laptop with node):
 npx web-push generate-vapid-keys --json
 
-# Then create the secret:
-aws secretsmanager create-secret \
-  --name alwaysnear/production/vapid \
-  --secret-string '{"publicKey":"...","privateKey":"..."}'
+# Then put the parameter:
+aws ssm put-parameter \
+  --name /alwaysnear/production/vapid \
+  --type SecureString \
+  --value '{"publicKey":"...","privateKey":"..."}'
 
 # Google OAuth client (from console.cloud.google.com → OAuth 2.0 Client IDs):
-aws secretsmanager create-secret \
-  --name alwaysnear/production/google-oauth \
-  --secret-string '{"clientId":"...","clientSecret":"..."}'
+aws ssm put-parameter \
+  --name /alwaysnear/production/google-oauth \
+  --type SecureString \
+  --value '{"clientId":"...","clientSecret":"..."}'
 ```
 
-The deploy script will auto-request a us-east-1 ACM cert if one covering `{spaDomain}` and `auth.{spaDomain}` isn't already issued. It writes the Route53 validation records too, so you just need credentials with ACM + Route53 + Secrets Manager permissions.
+The deploy script will auto-request a us-east-1 ACM cert if one covering `{spaDomain}` and `auth.{spaDomain}` isn't already issued. It writes the Route53 validation records too, so you just need credentials with ACM + Route53 + SSM Parameter Store permissions.
 
 ## Deploy
 
@@ -54,15 +56,15 @@ cd cdk
 dotnet build
 npx aws-cdk@latest deploy \
   -c env=production \
-  -c domain=alwaysnear.bluefin605.com \
+  -c domain=alwaysnear.example.com \
   -c subdomainPrefix=alwaysnear \
-  -c rootDomain=bluefin605.com \
+  -c rootDomain=example.com \
   -c region=ap-southeast-2 \
   -c accountId=<account> \
   -c certArnUsEast1=<acm arn> \
   -c googleOauthSecretName=alwaysnear/{env}/google-oauth \
   -c vapidSecretName=alwaysnear/{env}/vapid \
-  -c vapidSubject=mailto:bluefin605@gmail.com \
+  -c vapidSubject=mailto:you@example.com \
   -c rootDomainHostedZoneId=<route53 zone id>
 ```
 
@@ -73,4 +75,4 @@ After the stack exists, `.github/workflows/deploy-alwaysnear.yml` (manual trigge
 - `ALWAYSNEAR_AWS_ACCESS_KEY_ID`
 - `ALWAYSNEAR_AWS_SECRET_ACCESS_KEY`
 
-The IAM user needs: `lambda:UpdateFunctionCode`, `s3:PutObject` + `s3:DeleteObject` on the frontend bucket, `cloudfront:CreateInvalidation`, `cloudformation:DescribeStacks`, `secretsmanager:GetSecretValue` on the VAPID secret.
+The IAM user needs: `lambda:UpdateFunctionCode`, `s3:PutObject` + `s3:DeleteObject` on the frontend bucket, `cloudfront:CreateInvalidation`, `cloudformation:DescribeStacks`, `ssm:GetParameter` on the VAPID parameter, plus `kms:Decrypt` scoped via `kms:ViaService = ssm.<region>.amazonaws.com`.
