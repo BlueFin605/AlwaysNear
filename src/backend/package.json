@@ -1,0 +1,24 @@
+{
+  "name": "alwaysnear-backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AlwaysNear API Lambda — subscriptions, invites, and Web Push dispatch.",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist",
+    "package": "npm run clean && npm ci --omit=dev && npm run build && cd dist && zip -qr ../function.zip . && cd .. && zip -qr function.zip node_modules package.json"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.654.0",
+    "@aws-sdk/client-secrets-manager": "^3.654.0",
+    "@aws-sdk/lib-dynamodb": "^3.654.0",
+    "web-push": "^3.6.7"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.145",
+    "@types/node": "^22.7.4",
+    "@types/web-push": "^3.6.4",
+    "typescript": "^5.6.2"
+  }
+}

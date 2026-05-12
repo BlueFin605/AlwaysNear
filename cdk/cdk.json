@@ -1,0 +1,23 @@
+{
+  "app": "dotnet run --project AlwaysNear.Cdk.csproj",
+  "watch": {
+    "include": ["**"],
+    "exclude": [
+      "README.md",
+      "cdk*.json",
+      "**/*.user",
+      "**/*.suo",
+      "**/bin",
+      "**/obj",
+      "**/*.csproj.user"
+    ]
+  },
+  "context": {
+    "@aws-cdk/core:newStyleStackSynthesis": true,
+    "@aws-cdk/aws-iam:minimizePolicies": true,
+    "@aws-cdk/aws-cloudfront:defaultSecurityPolicyTLSv1.2_2021": true,
+    "@aws-cdk/aws-s3:serverAccessLogsUseBucketPolicy": true,
+    "@aws-cdk/aws-lambda:recognizeLayerVersion": true,
+    "@aws-cdk/aws-apigateway:disableCloudWatchRole": true
+  }
+}

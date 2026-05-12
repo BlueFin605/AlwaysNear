@@ -1,0 +1,9 @@
+node_modules/
+dist/
+bin/
+obj/
+cdk.out/
+*.user
+*.suo
+.DS_Store
+config.json

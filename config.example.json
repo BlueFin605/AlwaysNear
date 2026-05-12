@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "Template for the operator's private config.json. Real values live in the private home repo at configuration/alwaysnear/config.json. Do not commit a populated config.json to this public repo.",
+
+  "domain": "alwaysnear.example.com",
+  "subdomainPrefix": "alwaysnear",
+  "rootDomain": "example.com",
+
+  "region": "ap-southeast-2",
+  "accountId": "000000000000",
+
+  "certArnUsEast1": "arn:aws:acm:us-east-1:000000000000:certificate/REPLACE-ME",
+
+  "googleOauthSecretName": "alwaysnear-google-oauth-{env}",
+  "vapidSecretName": "alwaysnear-vapid-{env}",
+  "vapidSubject": "mailto:you@example.com",
+
+  "environments": {
+    "dev": {
+      "subdomainPrefix": "alwaysnear-dev"
+    },
+    "production": {
+      "subdomainPrefix": "alwaysnear"
+    }
+  }
+}
