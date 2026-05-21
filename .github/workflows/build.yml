@@ -6,41 +6,6 @@ on:
     branches: [main, master]
 
 jobs:
-  cdk:
-    name: CDK build + synth
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 10.0.x
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Restore + build CDK
-        working-directory: cdk
-        run: dotnet build --configuration Release
-
-      - name: CDK synth (dev placeholder context)
-        working-directory: cdk
-        env:
-          JSII_SILENCE_WARNING_UNTESTED_NODE_VERSION: '1'
-        run: |
-          npx --yes aws-cdk@latest synth --quiet \
-            -c env=dev \
-            -c domain=alwaysnear-dev.example.com \
-            -c subdomainPrefix=alwaysnear-dev \
-            -c rootDomain=example.com \
-            -c region=ap-southeast-2 \
-            -c accountId=000000000000 \
-            -c certArnUsEast1=arn:aws:acm:us-east-1:000000000000:certificate/test \
-            -c googleOauthSecretName=alwaysnear-google-oauth-dev \
-            -c vapidSecretName=alwaysnear-vapid-dev \
-            -c vapidSubject=mailto:ci@example.com
-
   frontend:
     name: Angular build
     runs-on: ubuntu-latest

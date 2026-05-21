@@ -42,6 +42,10 @@ public sealed partial class AlwaysNearStack
                 RequireSymbols = true,
             },
             Mfa = Mfa.OFF,
+            // SES-backed sender when configured, otherwise the Cognito default
+            // (no-reply@verificationemail.com, 50/day cap). bluefin605.com is
+            // a verified SES domain identity in this region (Home stack owns it).
+            Email = BuildUserPoolEmail(Cfg),
             RemovalPolicy = removalPolicy,
             DeletionProtection = isProduction,
         });
@@ -136,6 +140,28 @@ public sealed partial class AlwaysNearStack
             Value = isProduction
                 ? Cfg.AuthDomain
                 : $"{Cfg.ResourceName("auth")}.auth.{Cfg.Region}.amazoncognito.com",
+        });
+    }
+
+    private static UserPoolEmail BuildUserPoolEmail(Config.AppConfig cfg)
+    {
+        if (string.IsNullOrWhiteSpace(cfg.SesFromAddress))
+        {
+            return UserPoolEmail.WithCognito();
+        }
+
+        var atIndex = cfg.SesFromAddress.IndexOf('@');
+        if (atIndex <= 0 || atIndex == cfg.SesFromAddress.Length - 1)
+        {
+            throw new System.ArgumentException(
+                $"sesFromAddress '{cfg.SesFromAddress}' is not a valid email address.");
+        }
+
+        return UserPoolEmail.WithSES(new UserPoolSESOptions
+        {
+            FromEmail = cfg.SesFromAddress,
+            FromName = string.IsNullOrWhiteSpace(cfg.SesFromName) ? null : cfg.SesFromName,
+            SesVerifiedDomain = cfg.SesFromAddress.Substring(atIndex + 1),
         });
     }
 }

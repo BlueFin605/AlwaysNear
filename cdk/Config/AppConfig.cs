@@ -16,7 +16,9 @@ public sealed record AppConfig(
     string VapidSecretName,
     string VapidSubject,
     string RootDomainHostedZoneId,
-    bool AllowLocalhostCors)
+    bool AllowLocalhostCors,
+    string SesFromAddress,
+    string SesFromName)
 {
     public string ResourceName(string name) => $"alwaysnear-{name}-{Env}";
 
@@ -58,6 +60,12 @@ public sealed record AppConfig(
             VapidSecretName: Required("vapidSecretName").Replace("{env}", env),
             VapidSubject: Required("vapidSubject"),
             RootDomainHostedZoneId: Optional("rootDomainHostedZoneId"),
-            AllowLocalhostCors: Optional("allowLocalhostCors") == "true");
+            AllowLocalhostCors: Optional("allowLocalhostCors") == "true",
+            // Optional. When non-empty, Cognito sends verification + recovery
+            // emails via SES from this address instead of the default Cognito
+            // sender (no-reply@verificationemail.com). Requires the domain to
+            // be a verified SES identity in the stack region.
+            SesFromAddress: Optional("sesFromAddress"),
+            SesFromName: Optional("sesFromName"));
     }
 }
