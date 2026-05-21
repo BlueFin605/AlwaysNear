@@ -78,7 +78,10 @@ function handler(event) {
 
         var defaultBehavior = new BehaviorOptions
         {
-            Origin = new S3Origin(FrontendBucket, new S3OriginProps { OriginAccessIdentity = oai }),
+            Origin = S3BucketOrigin.WithOriginAccessIdentity(FrontendBucket, new S3BucketOriginWithOAIProps
+            {
+                OriginAccessIdentity = oai,
+            }),
             ViewerProtocolPolicy = ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
             AllowedMethods = AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
             CachedMethods = CachedMethods.CACHE_GET_HEAD_OPTIONS,
