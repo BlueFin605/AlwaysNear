@@ -30,6 +30,19 @@ public sealed partial class AlwaysNearStack
     partial void DefineApi()
     {
         var isProduction = Cfg.Env == "production";
+        var apiLogGroupName = $"/aws/lambda/{Cfg.LambdaName("api")}";
+
+        // This keeps retention managed without failing when the log group
+        // already exists outside CloudFormation (common after Lambda first-run).
+        _ = new LogRetention(this, "ApiLambdaLogRetention", new LogRetentionProps
+        {
+            LogGroupName = apiLogGroupName,
+            Retention = RetentionDays.ONE_MONTH,
+            LogRetentionRetryOptions = new Amazon.CDK.AWS.Logs.LogRetentionRetryOptions
+            {
+                MaxRetries = 5,
+            },
+        });
 
         ApiLambda = new Function(this, "ApiLambda", new FunctionProps
         {
@@ -52,7 +65,6 @@ public sealed partial class AlwaysNearStack
                 ["VAPID_SUBJECT"] = Cfg.VapidSubject,
                 ["ALLOWED_ORIGINS"] = Cfg.AllowedOrigins,
             },
-            LogRetention = RetentionDays.ONE_MONTH,
         });
 
         UsersTable.GrantReadWriteData(ApiLambda);

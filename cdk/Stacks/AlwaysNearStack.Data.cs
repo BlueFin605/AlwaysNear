@@ -34,7 +34,10 @@ public sealed partial class AlwaysNearStack
                 SortKey = sk,
                 BillingMode = BillingMode.PAY_PER_REQUEST,
                 Encryption = TableEncryption.AWS_MANAGED,
-                PointInTimeRecovery = true,
+                PointInTimeRecoverySpecification = new PointInTimeRecoverySpecification
+                {
+                    PointInTimeRecoveryEnabled = true,
+                },
                 TimeToLiveAttribute = ttlAttribute,
                 RemovalPolicy = removalPolicy,
             });
