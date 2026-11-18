@@ -54,10 +54,23 @@ async function route(event: APIGatewayProxyEvent, auth: AuthContext): Promise<Ro
   return { status: 404, body: { error: `No route for ${method} ${path}` } };
 }
 
-function extractAuth(event: APIGatewayProxyEvent): AuthContext | undefined {
+let warnedMissingClientId = false;
+
+export function extractAuth(event: APIGatewayProxyEvent): AuthContext | undefined {
   // REST API + Cognito authorizer puts claims under requestContext.authorizer.claims.
+  // The authorizer accepts any token from the (possibly shared) user pool, so we
+  // also require the ID token to have been issued to THIS app's client.
   const claims = event.requestContext?.authorizer?.claims as Record<string, string> | undefined;
   if (!claims) return undefined;
+  const clientId = process.env.COGNITO_CLIENT_ID;
+  if (!clientId) {
+    if (!warnedMissingClientId) {
+      warnedMissingClientId = true;
+      console.error("COGNITO_CLIENT_ID is not set; rejecting all requests");
+    }
+    return undefined;
+  }
+  if (claims.aud !== clientId || claims.token_use !== "id") return undefined;
   const userId = claims.sub;
   if (!userId) return undefined;
   const given = claims.given_name;
