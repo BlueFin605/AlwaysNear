@@ -92,6 +92,16 @@ public class IdentityStackTests
     }
 
     [Fact]
+    public void ApiDeploymentLogicalId_ChangesWhenIdentityPoolChanges()
+    {
+        var own = Synth().FindResources("AWS::ApiGateway::Deployment").Keys.Single();
+        var external = Synth("ap-southeast-2_TEST", "auth.example.com").FindResources("AWS::ApiGateway::Deployment").Keys.Single();
+        var other = Synth("ap-southeast-2_OTHER", "auth.example.com").FindResources("AWS::ApiGateway::Deployment").Keys.Single();
+        Assert.NotEqual(own, external);
+        Assert.NotEqual(external, other);
+    }
+
+    [Fact]
     public void OnlyOneIdentityParam_Throws()
     {
         Assert.Throws<InvalidOperationException>(() => Synth(poolId: "ap-southeast-2_TEST"));
