@@ -162,6 +162,16 @@ public sealed partial class AlwaysNearStack
         var call = Api.Root.AddResource("call");
         call.AddMethod("POST", lambdaIntegration, protectedMethod);
 
+        // CDK's deployment hash only covers methods/resources, not the authorizer's
+        // provider pool. Fold the pool id/ARN and authorizer into the logical id so
+        // switching identity pools (own <-> shared) redeploys the stage.
+        Api.LatestDeployment?.AddToLogicalId(new Dictionary<string, object>
+        {
+            ["userPoolId"] = UserPool.UserPoolId,
+            ["userPoolArn"] = UserPool.UserPoolArn,
+            ["authorizerId"] = authorizer.AuthorizerId,
+        });
+
         new CfnOutput(this, "ApiId", new CfnOutputProps { Value = Api.RestApiId });
         new CfnOutput(this, "ApiInvokeUrl", new CfnOutputProps { Value = Api.Url });
         new CfnOutput(this, "ApiLambdaName", new CfnOutputProps { Value = ApiLambda.FunctionName });
