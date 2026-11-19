@@ -22,7 +22,8 @@ Inspired by airline seatback panels — small, focused, fun.
 
 This is the public, generic code. The actual deployment is driven from the private `BlueFin605/home` repo:
 
-- `configuration/alwaysnear/config.json` — real config (domain, account ID, cert ARNs)
+- `configuration/alwaysnear/config.json` — real config (domain, account ID,
+  cert ARNs, optional shared-identity settings; see `cdk/README.md`)
 - `.github/workflows/deploy-alwaysnear.yml` — manual-trigger deploy
 
 To deploy your own instance, copy `config.example.json` → `config.json` in your own private repo, fill it in, and run CDK.
@@ -30,5 +31,7 @@ To deploy your own instance, copy `config.example.json` → `config.json` in you
 ## Constraints
 
 - No always-on infra (everything pay-as-you-go)
-- Public endpoints behind Cognito JWT
+- Public endpoints behind Cognito JWT. API Gateway validates the signature;
+  the backend also requires an ID token issued to this app's client, so
+  other apps' tokens from a shared user pool are rejected
 - VAPID keys live in SSM Parameter Store as SecureString — never in code or config.json

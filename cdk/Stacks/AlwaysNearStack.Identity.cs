@@ -10,63 +10,73 @@ namespace AlwaysNear.Cdk.Stacks;
 /// </summary>
 public sealed partial class AlwaysNearStack
 {
-    public UserPool UserPool { get; private set; } = null!;
+    public IUserPool UserPool { get; private set; } = null!;
     public UserPoolClient UserPoolWebClient { get; private set; } = null!;
-    public UserPoolDomain HostedUiDomain { get; private set; } = null!;
-    public UserPoolIdentityProviderGoogle GoogleIdentityProvider { get; private set; } = null!;
+    public UserPoolDomain? HostedUiDomain { get; private set; }
+    public UserPoolIdentityProviderGoogle? GoogleIdentityProvider { get; private set; }
 
     partial void DefineIdentity()
     {
         var isProduction = Cfg.Env == "production";
         var removalPolicy = isProduction ? RemovalPolicy.RETAIN : RemovalPolicy.DESTROY;
 
-        UserPool = new UserPool(this, "UserPool", new UserPoolProps
+        if (Cfg.UseExternalIdentity)
         {
-            UserPoolName = Cfg.ResourceName("users"),
-            SignInAliases = new SignInAliases { Email = true, Username = false },
-            SelfSignUpEnabled = true,
-            StandardAttributes = new StandardAttributes
+            // Shared identity: the pool, Google IdP and hosted-UI domain live outside this stack.
+            UserPool = Amazon.CDK.AWS.Cognito.UserPool.FromUserPoolId(this, "UserPool", Cfg.IdentityUserPoolId);
+        }
+        else
+        {
+            var ownPool = new UserPool(this, "UserPool", new UserPoolProps
             {
-                Email = new StandardAttribute { Required = true, Mutable = true },
-                GivenName = new StandardAttribute { Required = false, Mutable = true },
-                FamilyName = new StandardAttribute { Required = false, Mutable = true },
-            },
-            AutoVerify = new AutoVerifiedAttrs { Email = true },
-            AccountRecovery = AccountRecovery.EMAIL_ONLY,
-            PasswordPolicy = new PasswordPolicy
-            {
-                MinLength = 12,
-                RequireLowercase = true,
-                RequireUppercase = true,
-                RequireDigits = true,
-                RequireSymbols = true,
-            },
-            Mfa = Mfa.OFF,
-            // SES-backed sender when configured, otherwise the Cognito default
-            // (no-reply@verificationemail.com, 50/day cap). bluefin605.com is
-            // a verified SES domain identity in this region (Home stack owns it).
-            Email = BuildUserPoolEmail(Cfg),
-            RemovalPolicy = removalPolicy,
-            DeletionProtection = isProduction,
-        });
-
-        // Real Google credentials live in SSM SecureString at Cfg.GoogleOauthSecretName.
-        // CDK sets placeholders; deploy-infra.ps1 runs `aws cognito-idp update-identity-provider`
-        // post-deploy to inject the live values.
-        GoogleIdentityProvider = new UserPoolIdentityProviderGoogle(this, "GoogleProvider",
-            new UserPoolIdentityProviderGoogleProps
-            {
-                UserPool = UserPool,
-                ClientId = "PLACEHOLDER_SYNCED_POST_DEPLOY",
-                ClientSecretValue = SecretValue.UnsafePlainText("PLACEHOLDER_SYNCED_POST_DEPLOY"),
-                Scopes = new[] { "openid", "email", "profile" },
-                AttributeMapping = new AttributeMapping
+                UserPoolName = Cfg.ResourceName("users"),
+                SignInAliases = new SignInAliases { Email = true, Username = false },
+                SelfSignUpEnabled = true,
+                StandardAttributes = new StandardAttributes
                 {
-                    Email = ProviderAttribute.GOOGLE_EMAIL,
-                    GivenName = ProviderAttribute.GOOGLE_GIVEN_NAME,
-                    FamilyName = ProviderAttribute.GOOGLE_FAMILY_NAME,
+                    Email = new StandardAttribute { Required = true, Mutable = true },
+                    GivenName = new StandardAttribute { Required = false, Mutable = true },
+                    FamilyName = new StandardAttribute { Required = false, Mutable = true },
                 },
+                AutoVerify = new AutoVerifiedAttrs { Email = true },
+                AccountRecovery = AccountRecovery.EMAIL_ONLY,
+                PasswordPolicy = new PasswordPolicy
+                {
+                    MinLength = 12,
+                    RequireLowercase = true,
+                    RequireUppercase = true,
+                    RequireDigits = true,
+                    RequireSymbols = true,
+                },
+                Mfa = Mfa.OFF,
+                // SES-backed sender when configured, otherwise the Cognito default
+                // (no-reply@verificationemail.com, 50/day cap). bluefin605.com is
+                // a verified SES domain identity in this region (Home stack owns it).
+                Email = BuildUserPoolEmail(Cfg),
+                RemovalPolicy = removalPolicy,
+                DeletionProtection = isProduction,
             });
+
+            // Real Google credentials live in SSM SecureString at Cfg.GoogleOauthSecretName.
+            // CDK sets placeholders; deploy-infra.ps1 runs `aws cognito-idp update-identity-provider`
+            // post-deploy to inject the live values.
+            GoogleIdentityProvider = new UserPoolIdentityProviderGoogle(this, "GoogleProvider",
+                new UserPoolIdentityProviderGoogleProps
+                {
+                    UserPool = ownPool,
+                    ClientId = "PLACEHOLDER_SYNCED_POST_DEPLOY",
+                    ClientSecretValue = SecretValue.UnsafePlainText("PLACEHOLDER_SYNCED_POST_DEPLOY"),
+                    Scopes = new[] { "openid", "email", "profile" },
+                    AttributeMapping = new AttributeMapping
+                    {
+                        Email = ProviderAttribute.GOOGLE_EMAIL,
+                        GivenName = ProviderAttribute.GOOGLE_GIVEN_NAME,
+                        FamilyName = ProviderAttribute.GOOGLE_FAMILY_NAME,
+                    },
+                });
+
+            UserPool = ownPool;
+        }
 
         var callbackUrls = Cfg.AllowLocalhostCors
             ? new[] { $"https://{Cfg.SpaDomain}/auth/callback", "http://localhost:4200/auth/callback" }
@@ -100,7 +110,7 @@ public sealed partial class AlwaysNearStack
             SupportedIdentityProviders = new[]
             {
                 UserPoolClientIdentityProvider.COGNITO,
-                UserPoolClientIdentityProvider.GOOGLE,
+                UserPoolClientIdentityProvider.Custom("Google"),
             },
             GenerateSecret = false,
             // Cognito hard caps access/id token validity at 24 hours.
@@ -111,8 +121,9 @@ public sealed partial class AlwaysNearStack
             EnableTokenRevocation = true,
         });
 
-        UserPoolWebClient.Node.AddDependency(GoogleIdentityProvider);
+        if (GoogleIdentityProvider != null) UserPoolWebClient.Node.AddDependency(GoogleIdentityProvider);
 
+        if (!Cfg.UseExternalIdentity)
         HostedUiDomain = isProduction
             ? new UserPoolDomain(this, "AuthDomain", new UserPoolDomainProps
             {
@@ -137,7 +148,9 @@ public sealed partial class AlwaysNearStack
         new CfnOutput(this, "UserPoolWebClientId", new CfnOutputProps { Value = UserPoolWebClient.UserPoolClientId });
         new CfnOutput(this, "HostedUiDomainName", new CfnOutputProps
         {
-            Value = isProduction
+            Value = Cfg.UseExternalIdentity
+                ? Cfg.IdentityDomain
+                : isProduction
                 ? Cfg.AuthDomain
                 : $"{Cfg.ResourceName("auth")}.auth.{Cfg.Region}.amazoncognito.com",
         });

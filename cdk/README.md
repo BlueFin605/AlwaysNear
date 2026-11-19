@@ -25,6 +25,8 @@ aws ssm put-parameter \
 
 The deploy script will auto-request a us-east-1 ACM cert if one covering `{spaDomain}` and `auth.{spaDomain}` isn't already issued. It writes the Route53 validation records too, so you just need credentials with ACM + Route53 + SSM Parameter Store permissions.
 
+With a shared identity pool (see the context keys below), only `{spaDomain}` is needed on the cert, and the Google OAuth parameter above is not needed: the pool's Google IdP belongs to the owning stack, this stack does not read the parameter, and the deploy script skips its SSM check and Cognito credential sync. The VAPID parameter is still required.
+
 ## Deploy
 
 Use the end-to-end script in the home repo — it runs CDK *and* publishes both the frontend bundle and the Lambda code:
@@ -65,8 +67,12 @@ npx aws-cdk@latest deploy \
   -c googleOauthSecretName=alwaysnear/{env}/google-oauth \
   -c vapidSecretName=alwaysnear/{env}/vapid \
   -c vapidSubject=mailto:you@example.com \
+  -c identityUserPoolId=<shared user pool id> \
+  -c identityDomain=<shared hosted UI domain> \
   -c rootDomainHostedZoneId=<route53 zone id>
 ```
+
+`identityUserPoolId` and `identityDomain` are optional and must be given together or not at all. Delete both lines unless you are deploying against a shared pool. With both set, this stack imports the existing pool and uses `identityDomain` as the hosted UI domain (e.g. `auth.example.com`), and creates no pool, Google IdP or Hosted UI domain. The external pool must already have a Google identity provider named `Google`, because the app client lists it as a supported provider.
 
 ## CI-driven app updates
 

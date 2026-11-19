@@ -14,7 +14,12 @@ pitch and how-it-works flow.
   `routes.ts` (HTTP handlers).
 - **Storage:** DynamoDB (subscriptions + household/user mapping).
 - **Auth:** Cognito User Pool with Google federation (Hosted UI) — see
-  `cdk/Stacks/AlwaysNearStack.Identity.cs`.
+  `cdk/Stacks/AlwaysNearStack.Identity.cs`. API Gateway's Cognito authorizer
+  validates the token; the backend also requires `aud` = the app client and
+  `token_use` = `id` (`extractAuth` in `src/backend/src/index.ts`). The pool
+  can be an external shared one (`identityUserPoolId` + `identityDomain`); the
+  stack then creates no pool, Google IdP or Hosted UI domain — see
+  `cdk/README.md`.
 - **Infra:** C# AWS CDK (`cdk/`) — S3 + CloudFront + Route53 + Cognito +
   Lambda + API Gateway + DynamoDB + SSM Parameter Store (VAPID, Google
   OAuth secrets).

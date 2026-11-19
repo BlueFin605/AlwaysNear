@@ -18,8 +18,13 @@ public sealed record AppConfig(
     string RootDomainHostedZoneId,
     bool AllowLocalhostCors,
     string SesFromAddress,
-    string SesFromName)
+    string SesFromName,
+    string IdentityUserPoolId = "",
+    string IdentityDomain = "")
 {
+    /// <summary>True when a shared, externally managed Cognito pool and hosted-UI domain are used instead of creating them.</summary>
+    public bool UseExternalIdentity => !string.IsNullOrWhiteSpace(IdentityUserPoolId);
+
     public string ResourceName(string name) => $"alwaysnear-{name}-{Env}";
 
     public string LambdaName(string name) => $"alwaysnear-{Env}-{name}";
@@ -48,6 +53,12 @@ public sealed record AppConfig(
             throw new InvalidOperationException(
                 $"env must be one of: dev, staging, production. Got: '{env}'.");
 
+        var identityUserPoolId = Optional("identityUserPoolId").Trim();
+        var identityDomain = Optional("identityDomain").Trim();
+        if ((identityUserPoolId.Length > 0) != (identityDomain.Length > 0))
+            throw new InvalidOperationException(
+                "CDK context 'identityUserPoolId' and 'identityDomain' must be provided together (or both omitted).");
+
         return new AppConfig(
             Env: env,
             Domain: Required("domain"),
@@ -66,6 +77,8 @@ public sealed record AppConfig(
             // sender (no-reply@verificationemail.com). Requires the domain to
             // be a verified SES identity in the stack region.
             SesFromAddress: Optional("sesFromAddress"),
-            SesFromName: Optional("sesFromName"));
+            SesFromName: Optional("sesFromName"),
+            IdentityUserPoolId: identityUserPoolId,
+            IdentityDomain: identityDomain);
     }
 }

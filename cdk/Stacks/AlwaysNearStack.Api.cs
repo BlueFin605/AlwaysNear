@@ -10,7 +10,9 @@ namespace AlwaysNear.Cdk.Stacks;
 /// Single Node.js Lambda behind a REST API Gateway. The Lambda routes
 /// internally based on method+path. A Cognito User Pool authorizer guards
 /// every route except OPTIONS (preflight) — the frontend signs in via the
-/// Hosted UI and sends id-tokens as `Authorization: Bearer ...`.
+/// Hosted UI and sends id-tokens as `Authorization: Bearer ...`. The authorizer
+/// accepts any token from the pool, so the Lambda also checks aud ==
+/// COGNITO_CLIENT_ID and token_use == id (see extractAuth in the backend).
 ///
 /// Routes:
 ///   GET    /me
@@ -64,6 +66,7 @@ public sealed partial class AlwaysNearStack
                 ["VAPID_SECRET_NAME"] = Cfg.VapidSecretName,
                 ["VAPID_SUBJECT"] = Cfg.VapidSubject,
                 ["ALLOWED_ORIGINS"] = Cfg.AllowedOrigins,
+                ["COGNITO_CLIENT_ID"] = UserPoolWebClient.UserPoolClientId,
             },
         });
 

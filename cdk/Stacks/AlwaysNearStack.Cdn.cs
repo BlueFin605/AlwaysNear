@@ -161,15 +161,18 @@ function handler(event) {
                 Target = RecordTarget.FromAlias(new CloudFrontTarget(Distribution)),
             });
 
-            HostedUiDomain.Node.AddDependency(spaAlias);
-            HostedUiDomain.Node.AddDependency(spaAliasV6);
-
-            new ARecord(this, "AuthAlias", new ARecordProps
+            if (HostedUiDomain != null)
             {
-                Zone = zone,
-                RecordName = Cfg.AuthDomain,
-                Target = RecordTarget.FromAlias(new UserPoolDomainTarget(HostedUiDomain)),
-            });
+                HostedUiDomain.Node.AddDependency(spaAlias);
+                HostedUiDomain.Node.AddDependency(spaAliasV6);
+
+                new ARecord(this, "AuthAlias", new ARecordProps
+                {
+                    Zone = zone,
+                    RecordName = Cfg.AuthDomain,
+                    Target = RecordTarget.FromAlias(new UserPoolDomainTarget(HostedUiDomain)),
+                });
+            }
         }
 
         new CfnOutput(this, "FrontendBucketName", new CfnOutputProps { Value = FrontendBucket.BucketName });
